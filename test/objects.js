@@ -913,6 +913,7 @@
 
     assert.ok(_.has({a: {b: 'foo'}}, ['a', 'b']), 'can check for nested properties.');
     assert.notOk(_.has({a: child}, ['a', 'foo']), 'does not check the prototype of nested props.');
+    assert.notOk(_.has({a: child}, []), 'return false for []');
   });
 
   QUnit.test('property', function(assert) {
