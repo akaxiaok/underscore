@@ -151,12 +151,11 @@
   var isArrayLike = function (collection) {
     var length = getLength(collection);
     return typeof length == 'number' && length >= 0 && length < MAX_ARRAY_INDEX;
-  }
-
+  };
 
   // Collection Functions
   // 集合方法
-
+  // 需要注意的是 {length:4} 会被当成 长度为4的类数组，从而iteratee会执行4次，JQ也一样。
   _.each = _.forEach = function (obj, iteratee, context) {
     iteratee = optimizeCb(iteratee, context);
     var i, length;
@@ -171,6 +170,21 @@
       }
     }
   };
+
+  // 使用 iteratee 对每一个集合里的元素进行操作,返回一个数组，该数组保存了每次操作的返回值
+  // 同_.each一样 {length:4} 也会使 iteratee 执行4次
+  _.map = _.collect = function (obj, iteratee, context) {
+    iteratee = cb(iteratee, context);
+    var keys = !isArrayLike(obj) && _.keys(obj),
+      length = (keys || obj).length,
+      results = Array(length);
+    for (var index = 0; index < length; index++) {
+      var currentKey = keys ? keys[index] : index;
+      results[index] = iteratee(obj[currentKey],currentKey,obj)
+    }
+    return results;
+  };
+
 
   // Object Functions
   // 对象方法
@@ -198,7 +212,10 @@
     }
   }
 
-  _.key = function (obj) {
+
+  // 返回对象自身的属性(不是在原型上的)
+  // ES 5 Object.keys 方法
+  _.keys = function (obj) {
     if (!_.isObject(obj)) return [];
     if (nativeKeys) return nativeKeys(obj);
     var keys = [];
@@ -212,4 +229,43 @@
     }
     return keys;
   }
+
+  // 判断输入的参数是不是一个对象
+  _.isObject = function (obj) {
+    var type = typeof obj;
+    // typeof null 也是 object，!!null 返回false
+    return type === 'function' || type === 'object' && !!obj;
+  }
+  // 判断一个属性是否是每个对象的自有属性（即该属性不是在原型上的）
+  _.has = function (obj, path) {
+    if (!_.isArray(path)) {
+      return obj != null && hasOwnProprety.call(obj, path);
+    }
+    else {
+      var length = path.length;
+      for (var i = 0; i < length; i++) {
+        var key = path[i];
+        if (obj == null || !hasOwnProprety.call(obj, key)) {
+          return false;
+        }
+        else {
+          obj = obj[key];
+        }
+      }
+      return !!length; // 为什么这么写
+      // 为了第二个参数为空数组 [] 时也能正确判断，已添加测试
+      // return true;
+    }
+  }
+  // 判断是否是一个数组, 优先使用 ES5 的 Array.isArray 方法
+  _.isArray = nativeIsArray || function (obj) {
+    return toString.call(obj) == '[object Array]';
+  }
+  var nodelist = root.document && root.document.childNodes;
+  if (typeof /./ != 'function' && typeof Int8Array != 'object' && typeof nodelist != 'function') {
+    _.isFunction = function (obj) {
+      return typeof obj == 'function' || false;
+    }
+  }
+
 }());
