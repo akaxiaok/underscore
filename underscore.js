@@ -180,11 +180,38 @@
       results = Array(length);
     for (var index = 0; index < length; index++) {
       var currentKey = keys ? keys[index] : index;
-      results[index] = iteratee(obj[currentKey],currentKey,obj)
+      results[index] = iteratee(obj[currentKey], currentKey, obj)
     }
     return results;
   };
 
+  var createReduce = function (dir) {
+    var reducer = function (obj, iteratee, memo, initial) {
+      var keys = !isArrayLike(obj) & _.keys(obj),
+        length = (keys || obj).length,
+        index = dir > 0 ? 0 : length - 1;
+      if (!initial) {
+        memo = obj[keys ? keys[index] : index];
+        index += dir;
+      }
+      for (; index >= 0 && index < length; index += dir) {
+        var currentKey = keys ? keys[index] : index;
+        memo = iteratee(memo, obj[currentKey], currentKey, obj);
+      }
+      return memo;
+    }
+
+    // 参数: 集合，迭代器，[初始化]，[上下文]
+    // 未传入初始化，以集合第一个元素为初始化值
+    return function (obj, iteratee, memo, context) {
+      var initial = arguments.length >= 3;
+      return reducer(obj, optimizeCb(iteratee, context, 4), memo, initial);
+    }
+  };
+
+
+  _.reduce = _.foldl = _.injet = createReduce(1);
+  _.reduceRight = _.forlr = createReduce(-1);
 
   // Object Functions
   // 对象方法
@@ -230,12 +257,7 @@
     return keys;
   }
 
-  // 判断输入的参数是不是一个对象
-  _.isObject = function (obj) {
-    var type = typeof obj;
-    // typeof null 也是 object，!!null 返回false
-    return type === 'function' || type === 'object' && !!obj;
-  }
+
   // 判断一个属性是否是每个对象的自有属性（即该属性不是在原型上的）
   _.has = function (obj, path) {
     if (!_.isArray(path)) {
@@ -257,10 +279,29 @@
       // return true;
     }
   }
+
+
   // 判断是否是一个数组, 优先使用 ES5 的 Array.isArray 方法
   _.isArray = nativeIsArray || function (obj) {
     return toString.call(obj) == '[object Array]';
   }
+
+
+  // 判断输入的参数是不是一个对象
+  _.isObject = function (obj) {
+    var type = typeof obj;
+    // typeof null 也是 object，!!null 返回false
+    return type === 'function' || type === 'object' && !!obj;
+  }
+
+  // 一些判断方法
+  _.each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp', 'Error', 'Symbol', 'Map', 'WeakMap', 'Set', 'WeakSet'], function (name) {
+    _['is' + name] = function (obj) {
+      return toString.call(obj) === '[object +' + name + ']';
+    }
+  });
+
+  // 改进isFunction方法，规避一些bug
   var nodelist = root.document && root.document.childNodes;
   if (typeof /./ != 'function' && typeof Int8Array != 'object' && typeof nodelist != 'function') {
     _.isFunction = function (obj) {
