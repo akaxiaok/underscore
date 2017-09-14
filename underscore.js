@@ -279,11 +279,57 @@
     return true;
   };
 
+
+  // 判断集合中是否存在特定的元素(使用 '===')
   _.contains = _.includes = _.include = function (obj, item, fromIndex, guard) {
     if (!isArrayLike(obj)) obj = _.values(obj);
     if (typeof fromIndex != 'number' || guard) fromIndex = 0;
     return _.indexOf(obj, item, fromIndex) >= 0;
   };
+
+
+  // 向一个有序数组插入一个元素，获取应该插入的位置，使用二分法
+  _.sortedIndex = function (array, obj, iteratee, context) {
+    iteratee = cb(iteratee, context, 1);
+    var value = iteratee(obj);
+    var low = 0, high = getLength(array);
+    while (low < high) {
+      var mid = Math.floor((low + high) / 2);
+      if (iteratee(array[mid]) < value) low = mid + 1; else high = mid;
+    }
+    return low;
+  };
+
+  var createIndexFinder = function (dir, predicateFind, sortedIndex) {
+    return function (array, item, idx) {
+      var i = 0, length = getLength(array);
+      if (typeof idx == 'number') { // 第三个参数为 boolean（是否已有序） 或者为 number（起始位置）
+        if (dir > 0) {
+          i = idx >= 0 ? idx : Math.max(idx + length, i); // 正向 起始位置 i 加上 idx
+        } else {
+          length = idx >= 0 ? Math.min(idx + 1, length) : idx + length + 1;
+        }
+      } else if (sortedIndex && idx && length) {
+        idx = sortedIndex(array, item); // 如果把元素插入集合，应该放到什么位置
+        // 该位置是不是该元素本身
+        // 是 返回该位置
+        // 否 表示该元素不在集合中
+        return array[idx] === item ? idx : -1;
+      }
+      // 元素不等于自身则是 NaN
+      if (item !== item) {
+        idx = predicateFind(slice.call(array, i, length), _.isNaN); // slice 后 从 i 起，所以后面返回要再加上 i
+        return idx >= 0 ? idx + i : -1;
+      }
+      for (idx = dir > 0 ? i : length - 1; idx >= 0 && idx < length; idx += dir) {
+        if (array[idx] === item) return idx;
+      }
+      return -1;
+    }
+  }
+
+  _.indexOf = createIndexFinder(1, _.findIndex, _.sortedIndex);
+  _.lastIndexOf = createIndexFinder(-1, _.findIndex);
 
 
   // 返回集合所有元素的值
@@ -374,7 +420,9 @@
   _.isArray = nativeIsArray || function (obj) {
     return toString.call(obj) == '[object Array]';
   }
-
+  _.isNaN = function (obj) {
+    return _.isNumber(obj) && isNaN(obj);
+  }
 
   // 判断输入的参数是不是一个对象
   _.isObject = function (obj) {
