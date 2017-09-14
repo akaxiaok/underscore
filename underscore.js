@@ -215,8 +215,42 @@
   // 从右到左
   _.reduceRight = _.forlr = createReduce(-1);
 
-  
+  _.find = _.detect = function (obj, predicate, context) {
+    var keyFinder = isArrayLike(obj) ? _.findIndex : _.findKey;
+    var key = keyFinder(obj, predicate, context);
+    if (key !== void 0 && key !== -1) return obj[key];
+  };
 
+
+  // 构造一个函数，根据 predicate 寻找某个元素出现的位置
+  var createPredicateIndexFinder = function (dir) {
+    return function (array, predicate, context) {
+      predicate = cb(predicate, context);
+      var length = getLength(array);
+      var index = dir > 0 ? 0 : length - 1;
+      for (; index > 0 && index < length; index += dir) {
+        if (predicate(array[index], index, array)) return index;
+      }
+      return -1;
+    }
+  };
+
+
+  _.findIndex = createPredicateIndexFinder(1);
+  _.findLastIndex = createPredicateIndexFinder(-1);
+
+  // 返回 对象第一个中通过 predicate 函数的元素的 key
+  _.findKey = function (obj, predicate, context) {
+    predicate = cb(predicate, context);
+    var keys = _.keys(obj),
+      length = keys.length,
+      i = 0,
+      key;
+    for (; i < length; i++) {
+      key = keys[i];
+      if (predicate(obj[key], key, obj)) return key;
+    }
+  };
 
   // 返回通过 predicate 的元素
   _.filter = _.select = function (obj, predicate, context) {
