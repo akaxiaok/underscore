@@ -210,8 +210,63 @@
   };
 
 
+  // 从左到右
   _.reduce = _.foldl = _.injet = createReduce(1);
+  // 从右到左
   _.reduceRight = _.forlr = createReduce(-1);
+
+  
+
+
+  // 返回通过 predicate 的元素
+  _.filter = _.select = function (obj, predicate, context) {
+    var results = [];
+    predicate = cb(predicate, context);
+    _.each(obj, function (value, index, list) {
+      if (predicate(value, index, list)) results.push(value);
+    });
+    return results;
+  };
+
+  // 返回不通过 predicate 的元素
+  _.reject = function (obj, predicate, context) {
+    return _.filter(obj, _.negate(cb(predicate)), context);
+  };
+
+  // 判断是否所有的元素都通过了 predicate
+  _.every = _.all = function (obj, predicate, context) {
+    predicate = cb(predicate, context);
+    var keys = !isArrayLike(obj) && _.keys(obj),
+      length = (keys || obj).length;
+    for (var index = 0; index < length; index++) {
+      var currentKey = keys ? keys[index] : index;
+      if (!predicate(obj[currentKey], currentKey, obj)) return false;
+    }
+    return true;
+  };
+
+  _.contains = _.includes = _.include = function (obj, item, fromIndex, guard) {
+    if (!isArrayLike(obj)) obj = _.values(obj);
+    if (typeof fromIndex != 'number' || guard) fromIndex = 0;
+    return _.indexOf(obj, item, fromIndex) >= 0;
+  };
+
+
+  // 返回集合所有元素的值
+  _.values = function (obj) {
+    var keys = _.keys(obj);
+    var length = keys.length;
+    var values = Array(length);
+    for (var i = 0; i < length; i++) {
+      values[i] = obj[keys[i]];
+    }
+    return values;
+  };
+  _.negate = function (predicate) {
+    return function () {
+      return !predicate.apply(this, arguments);
+    }
+  };
 
   // Object Functions
   // 对象方法
