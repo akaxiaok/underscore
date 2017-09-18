@@ -279,6 +279,17 @@
     return true;
   };
 
+  // 判断集合中是否有任意一个元素通过了 predicate
+  _.some = _.any = function (obj, predicate, context) {
+    predicate = cb(predicate, context);
+    var keys = !isArrayLike(obj) & _.keys(obj),
+      length = (keys || obj).length;
+    for (var index = 0; index < length; index++) {
+      var currentKey = keys ? keys[index] : index;
+      if (predicate(obj[currentKey], currentKey, obj)) return true
+    }
+    return false;
+  };
 
   // 判断集合中是否存在特定的元素(使用 '===')
   _.contains = _.includes = _.include = function (obj, item, fromIndex, guard) {
@@ -287,6 +298,33 @@
     return _.indexOf(obj, item, fromIndex) >= 0;
   };
 
+  // https://github.com/KableShow/front-end-notes/issues/1
+  // 第二个参数可以是
+  // 1 字符串 集合的每个元素调用该字符串对应的方法
+  // 2 方法 集合的每个元素调用该方法
+  // 3 数组 集合的每个元素根据该数组深层调用方法
+  // 例如 _.invoke({ a: { getArray: [4, 2] }, b: { getArray: [3, 1] } }, ['getArray', 'sort']); 会返回
+  // [a.getArray.sort(), b.getArray.sort]
+  _.invoke = restArgs(function (obj, path, args) {
+    var contextPath, func;
+    if (_.isFunction(path)) {
+      func = path;
+    } else if (_.isArray(path)) {
+      contextPath = path.slice(0, -1);
+      path = path[path.length - 1];
+    }
+    return _.map(obj, function (context) {
+      var method = func;
+      if (!method) {
+        if (contextPath && contextPath.length) {
+          context = deepGet(context, contextPath);
+        }
+        if (context == null) return void 0;
+        method = context[path];
+      }
+      return method == null ? method : method.apply(context, args);
+    })
+  })
 
   // 向一个有序数组插入一个元素，获取应该插入的位置，使用二分法
   _.sortedIndex = function (array, obj, iteratee, context) {
