@@ -37,7 +37,7 @@
     if (obj instanceof _) return obj;
     if (!(this instanceof _)) return new _(obj);
     this._wrapped = obj;
-  }
+  };
 
   if (typeof exports != 'undefined' && !exports.nodeType) {
     if (typeof module != 'undefined' && !module.nodeType && module.exports) {
@@ -57,12 +57,12 @@
       case 1:
         return function (value) {
           return func.call(context, value);
-        }
+        };
       case null:
       case 3:
         return function (value, index, collection) {
           return func.call(context, value, index, collection);
-        }
+        };
       case 4:
         return function (accumulator, value, index, collection) {
           return func.call(context, accumulator, value, index, collection);
@@ -71,7 +71,7 @@
     return function () {
       return func.apply(context, arguments);
     }
-  }
+  };
   var builtinIteratee;
 
   var cb = function (value, context, argCount) {
@@ -80,11 +80,11 @@
     if (_.isFunction(value)) return optimizeCb(value, context, argCount);
     if (_.isObject(value) && !_.isArray(value)) return _.matcher(value);
     return _.property(value);
-  }
+  };
 
   _.iteratee = builtinIteratee = function (value, context) {
     return cb(value, context, Infinity);
-  }
+  };
 
   var restArgs = function (func, startIndex) {
     startIndex = startIndex == null ? func.length - 1 : +startIndex;
@@ -110,7 +110,7 @@
       args[startIndex] = rest;
       return func.apply(this, args);
     }
-  }
+  };
 
   // 继承(inherit)
   // 当 prototype 不是对象时 返回空对象
@@ -122,13 +122,13 @@
     var restult = new Ctor();
     Ctor.prototype = null;
     return restult;
-  }
+  };
 
   var shallowProperty = function (key) {
     return function (obj) {
       return obj == null ? void 0 : obj[key];
     }
-  }
+  };
 
 
   // 根据 path 从一层层向对象深处读取
@@ -139,7 +139,7 @@
       obj = obj[path[i]];
     }
     return length ? obj : void 0;
-  }
+  };
 
   // https://github.com/jquery/jquery/issues/2145
   // iOS 8 Safari 64位 bug，只有数字属性的对象如 foo = { 1: 'a', 2: 'b', 3: 'c' }
@@ -199,7 +199,7 @@
         memo = iteratee(memo, obj[currentKey], currentKey, obj);
       }
       return memo;
-    }
+    };
 
     // 参数: 集合，迭代器，[初始化]，[上下文]
     // 未传入初始化，以集合第一个元素为初始化值
@@ -324,7 +324,162 @@
       }
       return method == null ? method : method.apply(context, args);
     })
-  })
+  });
+
+  // 简化map的使用
+  // 返回集合中每个元素的某个属性
+  _.pluck = function (obj, key) {
+    return _.map(obj, _.property(key));
+  };
+
+  // 简化filter的使用
+  // 返回包含特定键值对的元素
+  _.where = function (obj, attrs) {
+    return _.filter(obj, _.matcher(attrs));
+  };
+
+  // 简化find的使用
+  // 返回第一个包含特定键值对的元素
+  _.findWhere = function (obj, attrs) {
+    return _.find(obj, _.matcher(attrs));
+  };
+
+  // 集合中的最大的元素，如果提供了 iteratee 则返回某元素，该元素经过 iteratee 处理后的返回值最大 。
+  _.max = function (obj, iteratee, context) {
+    var result = -Infinity, lastcomputed = -Infinity,
+      value, computed;
+    if (iteratee == null || (typeof iteratee == 'number' && typeof obj[0] != 'object') && obj != null) {
+      obj = isArrayLike(obj) ? obj : _.values(obj);
+      for (var i = 0, length = obj.length; i < length; i++) {
+        value = obj[i];
+        if (value != null && value > result) {
+          result = value;
+        }
+      }
+    } else {
+      iteratee = cb(iteratee, context);
+      _.each(obj, function (v, index, list) {
+        computed = iteratee(v, index, list);
+        if (computed > lastcomputed || computed === -Infinity && result === -Infinity) {
+          result = v;
+          lastcomputed = computed;
+        }
+      })
+    }
+    return result;
+  };
+  // 返回最小的元素
+  _.min = function (obj, iteratee, context) {
+    var result = Infinity, lastcomputed = Infinity,
+      value, computed;
+    if (iteratee == null || (typeof iteratee == 'number' && typeof obj[0] != 'object') && obj != null) {
+      obj = isArrayLike(obj) ? obj : _.values(obj);
+      for (var i = 0, length = obj.length; i < length; i++) {
+        value = obj[i];
+        if (value != null && value > result) {
+          result = value;
+        }
+      }
+    } else {
+      iteratee = cb(iteratee, context);
+      _.each(obj, function (v, index, list) {
+        computed = iteratee(v, index, list);
+        if (computed > lastcomputed || computed === Infinity && result === Infinity) {
+          result = v;
+          lastcomputed = computed;
+        }
+      })
+    }
+    return result;
+  };
+
+  // 打乱一个集合的顺序
+  _.shuffle = function (obj) {
+    return _.sample(obj, Infinity);
+  };
+
+
+  // 返回一个谓词方法
+  _.matcher = _.matches = function (attrs) {
+    attrs = _.extendOwn({}, attrs);
+    return function (obj) {
+      return _.isMatch(obj, attrs);
+    }
+  };
+
+  _.sample = function (obj, n, guard) {
+    if (n == null || guard) {
+      if (!isArrayLike(obj)) obj = _.values(obj);
+      return obj[_.random(obj.length - 1)];
+    }
+    var sample = isArrayLike(obj) ? _.clone(obj) : _.values(obj);
+    var length = getLength(sample);
+    n = Math.max(Math.min(n, length), 0);
+    var last = length - 1;
+    for (var index = 0; index < n; index++) {
+      var rand = _.random(index, last);
+      var temp = sample[index];
+      sample[index] = sample[rand];
+      sample[rand] = temp;
+    }
+    return sample.slice(0, n);
+  };
+
+  // 返回 [min, max] 之间的一个随机数
+  _.random = function (min, max) {
+    if (max == null) {
+      max = min;
+      min = 0;
+    }
+    return min + Math.floor(Math.random() * (max - min + 1));
+  };
+
+  // 创建扩展方法的内部方法，keysFunc 用于获取属性，传入 _.keys 获取原对象的自有（实例）方法，_.allKeys 获取包括继承（原型）方法在内的所有方法。
+  var createAssigner = function (keysFunc, defaults) {
+    return function (obj) {
+      var length = arguments.length;
+      if (defaults) obj = Object(obj);
+      if (length < 2 || obj == null) return obj;
+      for (var index = 1; index < length; index++) {
+        var source = arguments[index],
+          keys = keysFunc(source),
+          l = keys.length;
+        for (var i = 0; i < l; i++) {
+          var key = keys[i];
+          if (!defaults || obj[key] === void 0) obj[key] = source[key];// 浅复制
+        }
+      }
+      return obj;
+    }
+  };
+
+  _.extend = createAssigner(_.allKeys);
+
+  // ES 6 Object.assign
+  _.extendOwn = _.assign = createAssigner(_.keys);
+
+  // 判断对象是否含有某些键值对
+  _.isMatch = function (object, attrs) {
+    var keys = _.keys(attrs), length = keys.length;
+    if (object == null) return !length;
+    var obj = Object(object);
+    for (var i = 0; i < length; i++) {
+      var key = keys[i];
+      if (attrs[key] !== obj[key] || !(key in obj)) return false;
+    }
+    return true;
+  };
+
+  // 返回一个读取对应属性的方法
+  _.property = function (path) {
+    if (!_.isArray(path)) {
+      return shallowProperty(path);
+    }
+    return function (obj) {
+      return deepGet(obj, path);
+    }
+  };
+
 
   // 向一个有序数组插入一个元素，获取应该插入的位置，使用二分法
   _.sortedIndex = function (array, obj, iteratee, context) {
@@ -364,7 +519,7 @@
       }
       return -1;
     }
-  }
+  };
 
   _.indexOf = createIndexFinder(1, _.findIndex, _.sortedIndex);
   _.lastIndexOf = createIndexFinder(-1, _.findIndex);
@@ -410,7 +565,7 @@
         keys.push(prop);
       }
     }
-  }
+  };
 
 
   // 返回对象自身的属性(不是在原型上的)
@@ -428,8 +583,17 @@
       collectNonEnumProps(obj, keys);
     }
     return keys;
-  }
+  };
 
+  // 返回所有属性（包括继承（原型）属性）
+  _.allKeys = function (obj) {
+    if (!_.isObject(obj)) return [];
+    var keys = [];
+    for (var key in obj) keys.push(key);
+    // Ahem, IE < 9
+    if (hasEnumBug) collectNonEnumProps(obj, keys);
+    return keys;
+  };
 
   // 判断一个属性是否是每个对象的自有属性（即该属性不是在原型上的）
   _.has = function (obj, path) {
@@ -451,23 +615,24 @@
       // 为了第二个参数为空数组 [] 时也能正确判断，已添加测试
       // return true;
     }
-  }
+  };
 
 
   // 判断是否是一个数组, 优先使用 ES5 的 Array.isArray 方法
   _.isArray = nativeIsArray || function (obj) {
     return toString.call(obj) == '[object Array]';
-  }
+  };
+
   _.isNaN = function (obj) {
     return _.isNumber(obj) && isNaN(obj);
-  }
+  };
 
   // 判断输入的参数是不是一个对象
   _.isObject = function (obj) {
     var type = typeof obj;
     // typeof null 也是 object，!!null 返回false
     return type === 'function' || type === 'object' && !!obj;
-  }
+  };
 
   // 一些判断方法
   _.each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp', 'Error', 'Symbol', 'Map', 'WeakMap', 'Set', 'WeakSet'], function (name) {
