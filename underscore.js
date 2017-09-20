@@ -20,7 +20,7 @@
   //quick access to some prototype function
   var push = ArrayProto.push,
     slice = ArrayProto.slice,
-    toString = ObjProto.slice,
+    toString = ObjProto.toString,
     hasOwnProprety = ObjProto.hasOwnProperty;
 
   // save es5 function
@@ -495,7 +495,7 @@
       // 保证正确读取四字节字符
       return obj.match(reStrSymbol);
     }
-    if (isArrayLike(obj)) return _.map(obj, _.identity); // 类数组
+    if (isArrayLike(obj)) return _.map(obj, _.identity); // 类数组，构造真正的数组，除了 index 索引外，去掉其他属性
     return _.values(obj); // 对象 返回所有属性组成的数组
   };
 
