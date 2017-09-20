@@ -407,6 +407,8 @@
     }
   };
 
+  // 在集合中随机取出 n 个元素，guard 用于保证在 map 中使用时进入正确的分支(与 n 为0一样，仅返回一个元素)，因为 map 会传入第三个参数。
+  // 使用 Fisher-Yates 算法
   _.sample = function (obj, n, guard) {
     if (n == null || guard) {
       if (!isArrayLike(obj)) obj = _.values(obj);
@@ -425,6 +427,82 @@
     return sample.slice(0, n);
   };
 
+  // 对集合进行排序
+  _.sortBy = function (obj, iteratee, context) {
+    var index = 0;
+    iteratee = cb(iteratee, context); // iteratee 为字符串时是取元素对应的属性
+    // _.map 将每个元素通过 iteratee 运算 返回 由原始值、索引和计算值组成的对象
+    // 上一步的对象数组 经过 sort 排序
+    // 最终由 _.pluck 从排序后的数组里取出原始值数组
+    return _.pluck(_.max(obj, function (value, key, list) {
+        return {
+          value: value,
+          index: index++,
+          criteria: iteratee(value, key, list)
+        };
+      }).sort(function (left, right) {
+        var a = left.criteria;
+        var b = right.criteria;
+        if (a !== b) {
+          if (a > b || a === void 0) return 1;
+          if (a < b || b === void 0) return -1;
+        }
+        return left.index - right.index; // 两数相同，根据出现的先后返回，该算法是稳定的
+      })
+      , 'value')
+  };
+
+  var group = function (behavior, partition) {
+    return function (obj, iteratee, context) {
+      var result = partition ? [[], []] : {};// partition 为 _.partition 所使用
+      iteratee = cb(iteratee, context);
+      _.each(obj, function (value, index) {
+        var key = iteratee(value, index, obj); // 传入的集合里每一个元素都结果 iteratee 处理
+        behavior(result, value, key); // 不同的结果处理方法
+      });
+      return result;
+    }
+  };
+
+  // 将一个集合经过 iteratee 处理（为字符串时读取对应属性）
+  // 返回一个以处理结果作为属性的对象
+  _.groupBy = group(function (result, value, key) {
+    if (_.has(result, key)) result[key].push(value); else result[key] = [value];
+  });
+
+  // 每个组包含唯一元素的 _.groupBy
+  // 当你知道迭代方法返回的分组索引仅对应一个元素时使用
+  _.indexBy = group(function (result, value, key) {
+    result[key] = value;
+  });
+
+  // 为每个分组计数
+  _.countBy = group(function (result, value, key) {
+    if (_.has(result, key)) result[key]++; else result[key] = 1;
+  });
+
+  // 处理四字节字符
+  // JS 使用的 UCS-2 为 UTF-16 子集，只支持双字节字符
+  // [\ud800-\udfff] 是空的
+  // [^\ud800-\udfff] 为双字节字符
+  // [\ud800-\udbff] 高位在这个范围 说明是四字节字符 还要继续读接下来的两字节
+  var reStrSymbol = /[^\ud800-\udfff]|[\ud800-\udbff][\udc00-\udfff]|[\ud800-\udfff]/g;
+
+  _.toArray = function (obj) {
+    if (!obj) return [];
+    if (_.isArray(obj)) return slice.call(obj); // slice 用于拷贝数组
+    if (_.isString(obj)) {
+      // 保证正确读取四字节字符
+      return obj.match(reStrSymbol);
+    }
+    if (isArrayLike(obj)) return _.map(obj, _.identity); // 类数组
+    return _.values(obj); // 对象 返回所有属性组成的数组
+  };
+
+  // 什么也不做，返回原值
+  _.identity = function (value) {
+    return value;
+  };
   // 返回 [min, max] 之间的一个随机数
   _.random = function (min, max) {
     if (max == null) {
