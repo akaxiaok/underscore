@@ -499,6 +499,44 @@
     return _.values(obj); // 对象 返回所有属性组成的数组
   };
 
+  // 返回集合中元素的数量
+  _.size = function (obj) {
+    if (obj == null) return 0;
+    return isArrayLike(obj) ? obj.length : _.keys(obj).length;
+  };
+
+  // 将结果分为两个数组，一个包含通过了断言的元素，另一个为没有通过断言的元素
+  _.partition = group(function (result, value, pass) {
+    result[pass ? 0 : 1].push(value);
+  });
+
+  // Array Functions
+  // ---------------
+
+  // 返回前 1-n 个元素组成的数组
+  _.first = _.head = _.take = function (array, n, guard) {
+    if (array == null || array.length < 1) return void 0;
+    if (n == null || guard) return array[0];
+    return _.initial(array, array.length - n);
+  };
+
+  // 返回去掉最后 1-n 个元素组成的数组
+  _.initial = function (array, n, guard) {
+    return slice.call(array, 0, Math.max(0, array.length - (n == null || guard ? 1 : n)));
+  };
+
+  // 返回最后 1-n 个元素组成的数组
+  _.last = function (array, n, guard) {
+    if (array == null || array.length < 1) return void 0;
+    if (n == null || guard) return array[array.length - 1];
+    return _.rest(array, Math.max(0, array.length - n));
+  };
+
+  // 返回去掉前 1-n 个元素的数组
+  _.rest = _.tail = _.drop = function (array, n, guard) {
+    return slice.call(array, n == null || guard ? 1 : n);
+  };
+
   // 什么也不做，返回原值
   _.identity = function (value) {
     return value;
