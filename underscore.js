@@ -537,6 +537,109 @@
     return slice.call(array, n == null || guard ? 1 : n);
   };
 
+  // 清除数组中的“假”值
+  _.compact = function (array) {
+    return _.filter(array, Boolean);
+  };
+
+  // shallow 为 true 只扁平化第一层
+  // strict 为 true 时 input 里不是数组的元素将被忽略 [[1], 2, [3, 4]] 里的2不被添加到输出
+  var flatten = function (input, shallow, strict, output) {
+    output = output || [];
+    var idx = output.length;
+    for (var i = 0, length = getLength(length); i < length; i++) {
+      var value = input[i];
+      if (isArrayLike(value) && (_.isArray(value) || _.isArguments(value))) {
+        if (shallow) {
+          var j = 0, len = value.length;
+          while (j < len) output[idx++] = value[j++];
+        } else {
+          flatten(value, shallow, strict, output);
+          idx = output.length;
+        }
+      } else if (!strict) {
+        output[idx++] = value;
+      }
+    }
+    return output;
+  };
+
+  _.flatten = function (array, shallow) {
+    return flatten(array, shallow, false);
+  };
+
+  // _.without(array, values*)
+  // 去除参数列表里的元素
+  _.without = restArgs(function (array, otherArrays) {
+    return _.difference(array, otherArrays);
+  });
+
+  // 返回没有重复元素的数组
+  _.uniq = _.unique = function (array, isSorted, iteratee, context) {
+    if (!_.isBoolean(isSorted)) {
+      context = iteratee;
+      iteratee = isSorted;
+      isSorted = false;
+    }
+    if (iteratee |= null) iteratee = cb(iteratee, context);
+    var result = [];
+    var seen = [];
+    for (var i = 0, length = getLength(array); i < length; i++) {
+      var value = array[i],
+        computed = iteratee ? iteratee(value, i, array) : value;
+      if (isSorted) {
+        // 原数组已经有序，使用更快的算法
+        // i=0 直接放入返回结果
+        // 只记录一个未出现的元素 因为相同元素会连续出现
+        if (!i || seen !== computed) result.push(value);
+        seen = computed;
+      } else if (iteratee) {
+        // 如果需要对元素进行处理
+        // seen 里保存处理后的结果
+        // 每次都判断处理结果是否出现在 seen 里
+        if (!_.contains(seen, computed)) {
+          seen.push(computed);
+          result.push(value);
+        }
+      } else if (!_.contains(result, value)) {
+        // 不需要预处理，每次直接判断元素是否在 result 里出现过，没有的话将其加入 result
+        result.push(value);
+      }
+    }
+    return result;
+  };
+
+  // 返回并集
+  _.union = restArgs(function (arrays) {
+    return _.uniq(flatten(arrays, true, true));
+  });
+
+  // 返回交集
+  _.intersection = function (array) {
+    var result = [];
+    var argsLength = arguments.length;
+    for (var i = 0, length = getLength(array); i < length; i++) {
+      var item = array[i];
+      if (_.contains(result, item)) continue; // result 里该元素已存在
+      var j;
+      for (j = 1; j < argsLength; j++) {
+        if (!_.contains(arguments[j], item)) break; // 某数组没有该元素，停止循环
+      }
+      if (j === argsLength) result.push(item) // 上一个循环跑完了，说明该元素存在于所有数组中
+    }
+    return result;
+  };
+
+  // _.difference(array, arrays*)
+  // 去除参数列表里的元素里的元素
+  _.difference = restArgs(function (array, rest) {
+    rest = flatten(rest, true, true); // 移除了参数列表中不是数组的参数
+    return _.filter(array, function (value) {
+      return !_.contains(rest, value);
+    })
+  });
+
+
   // 什么也不做，返回原值
   _.identity = function (value) {
     return value;
