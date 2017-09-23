@@ -222,23 +222,6 @@
   };
 
 
-  // 构造一个函数，根据 predicate 寻找某个元素出现的位置
-  var createPredicateIndexFinder = function (dir) {
-    return function (array, predicate, context) {
-      predicate = cb(predicate, context);
-      var length = getLength(array);
-      var index = dir > 0 ? 0 : length - 1;
-      for (; index > 0 && index < length; index += dir) {
-        if (predicate(array[index], index, array)) return index;
-      }
-      return -1;
-    }
-  };
-
-
-  _.findIndex = createPredicateIndexFinder(1);
-  _.findLastIndex = createPredicateIndexFinder(-1);
-
   // 返回 对象第一个中通过 predicate 函数的元素的 key
   _.findKey = function (obj, predicate, context) {
     predicate = cb(predicate, context);
@@ -639,6 +622,129 @@
     })
   });
 
+  // [[1,2,3],[1,2,3]] -> [[1,1],[2,2],[3,3]]
+  _.unzip = function (array) {
+    // length 等于最长的数组元素
+    var length = array && _.max(array, getLength).length || 0;
+    var result = Array(length);
+
+    for (var index = 0; index < length; index++) {
+      result[index] = _.pluck(array, index); // 获取数组每个元素对应位置的元素
+    }
+    return result;
+  };
+
+  // _.zip([1,1],[2,2],[3,3]) -> [[1,2,3],[1,2,3]]
+  _.zip = restArgs(_.unzip);
+
+
+  // 传入一个键值对数组[key,value]组成的数组，或者两个等长数组，
+  // 返回一个对象
+  _.object = function (list, values) {
+    var result = {};
+    for (var i = 0, length = getLength(list); i < length; i++) {
+      if (values) {
+        result[list[i]] = values[i];
+      } else {
+        result[list[i][0]] = list[i][1];
+      }
+    }
+    return result;
+  };
+
+  // 构造一个函数，根据 predicate 寻找某个元素出现的位置
+  var createPredicateIndexFinder = function (dir) {
+    return function (array, predicate, context) {
+      predicate = cb(predicate, context);
+      var length = getLength(array);
+      var index = dir > 0 ? 0 : length - 1;
+      for (; index > 0 && index < length; index += dir) {
+        if (predicate(array[index], index, array)) return index;
+      }
+      return -1;
+    }
+  };
+
+
+  _.findIndex = createPredicateIndexFinder(1);
+  _.findLastIndex = createPredicateIndexFinder(-1);
+
+  // 向一个有序数组插入一个元素，获取应该插入的位置，使用二分法
+  _.sortedIndex = function (array, obj, iteratee, context) {
+    iteratee = cb(iteratee, context, 1);
+    var value = iteratee(obj);
+    var low = 0, high = getLength(array);
+    while (low < high) {
+      var mid = Math.floor((low + high) / 2);
+      if (iteratee(array[mid]) < value) low = mid + 1; else high = mid;
+    }
+    return low;
+  };
+
+  var createIndexFinder = function (dir, predicateFind, sortedIndex) {
+    return function (array, item, idx) {
+      var i = 0, length = getLength(array);
+      if (typeof idx == 'number') { // 第三个参数为 boolean（是否已有序） 或者为 number（起始位置）
+        if (dir > 0) {
+          i = idx >= 0 ? idx : Math.max(idx + length, i); // 正向 起始位置 i 加上 idx
+        } else {
+          length = idx >= 0 ? Math.min(idx + 1, length) : idx + length + 1;
+        }
+      } else if (sortedIndex && idx && length) {
+        idx = sortedIndex(array, item); // 如果把元素插入集合，应该放到什么位置
+        // 该位置是不是该元素本身
+        // 是 返回该位置
+        // 否 表示该元素不在集合中
+        return array[idx] === item ? idx : -1;
+      }
+      // 元素不等于自身则是 NaN
+      if (item !== item) {
+        idx = predicateFind(slice.call(array, i, length), _.isNaN); // slice 后 从 i 起，所以后面返回要再加上 i
+        return idx >= 0 ? idx + i : -1;
+      }
+      for (idx = dir > 0 ? i : length - 1; idx >= 0 && idx < length; idx += dir) {
+        if (array[idx] === item) return idx;
+      }
+      return -1;
+    }
+  };
+
+  _.indexOf = createIndexFinder(1, _.findIndex, _.sortedIndex);
+  _.lastIndexOf = createIndexFinder(-1, _.findIndex);
+
+  // 根据 start、stop、step 返回一个 number 数组
+  // 当 start 大于 stop 且没有 step 时和官网 API 不同了
+  // 不再是返回空数组
+  _.range = function (start, stop, step) {
+    if (stop == null) {
+      stop = start || 0;
+      start = 0;
+    }
+    if (!step) {
+      step = stop < start ? -1 : 1;
+    }
+
+    var length = Math.max(Math.ceil((stop - start) / step), 0);
+    var range = Array(length);
+
+    for (var idx = 0; idx < length; idx++, start += step) {
+      range[idx] = start;
+    }
+
+    return range;
+  };
+
+  // 将数组分成几个长度为 count 的数组
+  _.chunk = function (array, count) {
+    if (count == null || count < 1) return [];
+
+    var result = [];
+    var i = 0, length = array.length;
+    while (i < length) {
+      result.push(slice.call(array, i, i += count));
+    }
+    return result;
+  };
 
   // 什么也不做，返回原值
   _.identity = function (value) {
@@ -698,50 +804,6 @@
       return deepGet(obj, path);
     }
   };
-
-
-  // 向一个有序数组插入一个元素，获取应该插入的位置，使用二分法
-  _.sortedIndex = function (array, obj, iteratee, context) {
-    iteratee = cb(iteratee, context, 1);
-    var value = iteratee(obj);
-    var low = 0, high = getLength(array);
-    while (low < high) {
-      var mid = Math.floor((low + high) / 2);
-      if (iteratee(array[mid]) < value) low = mid + 1; else high = mid;
-    }
-    return low;
-  };
-
-  var createIndexFinder = function (dir, predicateFind, sortedIndex) {
-    return function (array, item, idx) {
-      var i = 0, length = getLength(array);
-      if (typeof idx == 'number') { // 第三个参数为 boolean（是否已有序） 或者为 number（起始位置）
-        if (dir > 0) {
-          i = idx >= 0 ? idx : Math.max(idx + length, i); // 正向 起始位置 i 加上 idx
-        } else {
-          length = idx >= 0 ? Math.min(idx + 1, length) : idx + length + 1;
-        }
-      } else if (sortedIndex && idx && length) {
-        idx = sortedIndex(array, item); // 如果把元素插入集合，应该放到什么位置
-        // 该位置是不是该元素本身
-        // 是 返回该位置
-        // 否 表示该元素不在集合中
-        return array[idx] === item ? idx : -1;
-      }
-      // 元素不等于自身则是 NaN
-      if (item !== item) {
-        idx = predicateFind(slice.call(array, i, length), _.isNaN); // slice 后 从 i 起，所以后面返回要再加上 i
-        return idx >= 0 ? idx + i : -1;
-      }
-      for (idx = dir > 0 ? i : length - 1; idx >= 0 && idx < length; idx += dir) {
-        if (array[idx] === item) return idx;
-      }
-      return -1;
-    }
-  };
-
-  _.indexOf = createIndexFinder(1, _.findIndex, _.sortedIndex);
-  _.lastIndexOf = createIndexFinder(-1, _.findIndex);
 
 
   // 返回集合所有元素的值
