@@ -746,6 +746,39 @@
     return result;
   };
 
+  // Function (ahem) Functions
+  // -------------------------
+
+  var executeBound = function (sourceFunc, boundFunc, context, callingContext, args) {
+
+    // callingContext 正常调用时是全局
+    if (!(callingContext instanceof boundFunc)) return sourceFunc.apply(context, args);
+
+    // 使用 new 调用 _.bind 返回函数
+    // callingContext 是 boundFunc 的一个实例
+
+    // self 继承 sourceFunc
+    var self = baseCreate(sourceFunc.prototype);
+
+    // new 调用构造函数
+    // 如果函数返回是一个对象，返回该对象
+    // 否则返回一个实例
+    var result = sourceFunc.apply(self, args);
+
+    if (_.isObject(result)) return result;
+    return self;
+  };
+
+  _.bind = restArgs(function (func, context, args) {
+    if (!_.isFunction(func)) throw new TypeError('Bind must be called on a function');
+    var bound = restArgs(function (callArgs) {
+      // this 在非 构造 调用的时候是 全局
+      // 在当成构造函数使用时，this 指向该构造函数的一个实例
+      return executeBound(func, bound, context, this, args.concat(callArgs));
+    });
+    return bound;
+  });
+
   // 什么也不做，返回原值
   _.identity = function (value) {
     return value;
