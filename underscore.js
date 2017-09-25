@@ -779,6 +779,62 @@
     return bound;
   });
 
+  // 传入一个函数和部分，返回一个部分参数已经设置好的函数版本
+  // 使用默认的 placeholder '_' 可以跳过某些参数的设置
+  _.partial = restArgs(function (func, boundArgs) {
+    var placeholder = _.partial.placeholder;
+    var bound = function () {
+      var position = 0, length = boundArgs.length;
+      var args = Array(length);
+      for (var i = 0; i < length; i++) {
+        // 某个位置上的参数等于 placeholder 则跳过该参数的设置，而是接受实际调用时的参数
+        args[i] = boundArgs[i] === placeholder ? arguments[position++] : boundArgs[i];
+      }
+      while (position < arguments.length) args.push(arguments[position++]);
+      return executeBound(func, bound, this, this, args);
+    };
+    return bound;
+  });
+
+  // 默认的 placeholder，可以修改
+  _.partial.placeholder = _;
+
+  // 将 keys 的所有方法绑定到 obj 上
+  _.bindAll = restArgs(function (obj, keys) {
+    keys = flatten(keys, false, false);
+    var index = keys.length;
+    if (index < 1) throw  new Error('bindAll must be passed function names');
+    while (index--) {
+      var key = keys[index];
+      obj[key] = _.bind(obj[key], obj);
+    }
+  });
+
+  // 存储函数计算结果，第二次直接返回
+  // 对于需要大量计算的函数 可以提高效率
+  _.memoize = function (func, hasher) {
+    var memoize = function (key) {
+      var cache = memoize.cache;
+      // 如果传入 hasher ，使用实际调用是的参数传入 hasher 计算 hash
+      // 否则 使用 第一个参数 作为 hash
+      var address = '' + (hasher ? hasher.apply(this, arguments) : key);
+      if (!_.has(cache, address)) cache[address] = func.apply(this.arguments);
+      return cache[address];
+    };
+    memoize.cache = {};
+    return memoize;
+  };
+  // 封装 setTimeout 可以传入参数
+  _.delay = restArgs(function (func, wait, args) {
+    return setTimeout(function () {
+      return func.apply(null, args);
+    }, wait);
+  });
+
+  // _delay(func,1) 压栈，让一个函数稍后执行(当前栈都运行结束之后)
+  _.defer = _.partial(_.delay, _, 1);
+
+
   // 什么也不做，返回原值
   _.identity = function (value) {
     return value;
