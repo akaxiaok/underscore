@@ -835,6 +835,194 @@
   _.defer = _.partial(_.delay, _, 1);
 
 
+  // 节流 返回一个函数，在 wait 时间段内无论调用多少次都只会执行一次
+  // （调用次数>1）options 设置 {leading: false} 第一次调用不会执行， {trailing: false} 最后一次用不会执行。（不能一起设置？）
+  _.throttle = function (func, wait, options) {
+    var timeout, context, args, result;
+    var previous = 0;
+    if (!options) options = {};
+    var later = function () {
+      previous = options.leading === false ? 0 : _.now;
+      timeout = null;
+      result = func.apply(context, args);
+      if (!timeout) context = args = null; // https://github.com/jashkenas/underscore/issues/2413
+    };
+    var throttled = function () {
+      var now = _.now();
+      if (!previous && options.leading === false) previous = now;
+      var remaining = wait - (now - previous);
+      context = this;
+      args = arguments;
+      if (remaining <= 0 || remaining > wait) { // https://github.com/jashkenas/underscore/pull/1473
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        previous = now;
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
+      } else if (!timeout && options.trailing !== false) {
+        timeout = setTimeout(later, remaining);
+      }
+      return result;
+    };
+    throttled.cancel = function () {
+      clearTimeout(timeout);
+      previous = 0;
+      timeout = context = args = null;
+    }
+
+  };
+
+  // 防抖 返回一个函数，在 wait 时间段内的调用都不会执行，且会重置 wait
+  // immediate 为 true，函数在调用时立即执行，为 false 时 wait 结束后执行
+  _.debounce = function (func, wait, immediate) {
+    var timeout, result;
+
+    var later = function (context, args) {
+      timeout = null;
+      if (args) result = func.apply(context, args);
+    };
+
+    var debounced = restArgs(function (args) {
+      if (timeout) clearTimeout(timeout);
+      if (immediate) {
+        var callNow = !timeout;
+        timeout = setTimeout(later, wait);
+        if (callNow) result = func.apply(this, args);
+      } else {
+        timeout = _.delay(later, wait, this, args);
+      }
+    });
+
+    debounced.cancel = function () {
+      clearTimeout(timeout);
+      timeout = null;
+    };
+
+    return debounced;
+  };
+
+  // 将第一个函数作为第二个函数的参数
+  _.wrap = function (func, wrapper) {
+    return _.partial(wrapper, func);
+  };
+
+  // 返回一个谓词函数的否定版
+  _.negate = function (predicate) {
+    return function () {
+      return !predicate.apply(this, arguments);
+    }
+  };
+
+  // 传入 n 个函数，第n个函数的结果作为第 n-1 个函数的参数
+  // 返回一个函数，该函数调用时的参数作为第 n 个函数的参数，返回第一个函数的执行结果
+  _.compose = function () {
+    var args = arguments;
+    var start = args.length - 1;
+    return function () {
+      var i = start;
+      var result = args[start].apply(this, arguments);
+      while (i--) result = args[i].call(this, result);
+      return result;
+    }
+  };
+
+  // 调用 n 次才执行
+  _.after = function (times, func) {
+    return function () {
+      if (--times < 1) {
+        return func.apply(this, arguments);
+      }
+    }
+  };
+
+  // 只能执行 n -1 次
+  _.before = function (times, func) {
+    var memo;
+    return function () {
+      if (--times < 1) {
+        memo = func.apply(this, arguments);
+      }
+      if (times <= 1) func = null;
+      return memo;
+    }
+  };
+
+  // 只能执行一次
+  _.once = _.partial(_.before, 2);
+
+  _.restArgs = restArgs;
+
+  // Object Functions
+  // 对象方法
+
+
+  // IE < 9, 以下属性不会被 for key in 访问到
+  var hasEnumBug = !{ toString: null }.propertyIsEnumerable('toString');
+  var nonEnumerableProps = ['valueOf', 'isPrototypeOf', 'toString', 'propertyIsEnumerable', 'hasOwnProperty', 'toLocalString'];
+
+  var collectNonEnumProps = function (obj, keys) {
+    var nonEnumIdx = nonEnumerableProps.length;
+    var constructor = obj.constructor;
+    var proto = _.isFunction(constructor) && constructor.prototype || ObjProto;
+
+    var prop = 'constructor';
+    if (_.has(obj, prop) && !_.contains(keys, prop)) {
+      keys.push(prop);
+    }
+
+    while (nonEnumIdx--) {
+      prop = nonEnumIdx[nonEnumIdx];
+      if (prop in obj && obj[prop] !== proto[prop] && !_.contains(keys, prop)) {
+        keys.push(prop);
+      }
+    }
+  };
+
+
+  // 返回对象自身的属性(不是在原型上的)
+  // ES 5 Object.keys 方法
+  _.keys = function (obj) {
+    if (!_.isObject(obj)) return [];
+    if (nativeKeys) return nativeKeys(obj);
+    var keys = [];
+    for (var key in obj) {
+      if (_.has(obj, key)) {
+        keys.push(key);
+      }
+    }
+    if (hasEnumBug) {
+      collectNonEnumProps(obj, keys);
+    }
+    return keys;
+  };
+
+  // 返回所有属性（包括继承（原型）属性）
+  _.allKeys = function (obj) {
+    if (!_.isObject(obj)) return [];
+    var keys = [];
+    for (var key in obj) keys.push(key);
+    // Ahem, IE < 9
+    if (hasEnumBug) collectNonEnumProps(obj, keys);
+    return keys;
+  };
+
+  // 返回集合所有元素的值
+  _.values = function (obj) {
+    var keys = _.keys(obj);
+    var length = keys.length;
+    var values = Array(length);
+    for (var i = 0; i < length; i++) {
+      values[i] = obj[keys[i]];
+    }
+    return values;
+  };
+
+  _.now = Date.now || function () {
+    return new Date().getTime();
+  };
+
   // 什么也不做，返回原值
   _.identity = function (value) {
     return value;
@@ -894,76 +1082,6 @@
     }
   };
 
-
-  // 返回集合所有元素的值
-  _.values = function (obj) {
-    var keys = _.keys(obj);
-    var length = keys.length;
-    var values = Array(length);
-    for (var i = 0; i < length; i++) {
-      values[i] = obj[keys[i]];
-    }
-    return values;
-  };
-  _.negate = function (predicate) {
-    return function () {
-      return !predicate.apply(this, arguments);
-    }
-  };
-
-  // Object Functions
-  // 对象方法
-
-
-  // IE < 9, 以下属性不会被 for key in 访问到
-  var hasEnumBug = !{ toString: null }.propertyIsEnumerable('toString');
-  var nonEnumerableProps = ['valueOf', 'isPrototypeOf', 'toString', 'propertyIsEnumerable', 'hasOwnProperty', 'toLocalString'];
-
-  var collectNonEnumProps = function (obj, keys) {
-    var nonEnumIdx = nonEnumerableProps.length;
-    var constructor = obj.constructor;
-    var proto = _.isFunction(constructor) && constructor.prototype || ObjProto;
-
-    var prop = 'constructor';
-    if (_.has(obj, prop) && !_.contains(keys, prop)) {
-      keys.push(prop);
-    }
-
-    while (nonEnumIdx--) {
-      prop = nonEnumIdx[nonEnumIdx];
-      if (prop in obj && obj[prop] !== proto[prop] && !_.contains(keys, prop)) {
-        keys.push(prop);
-      }
-    }
-  };
-
-
-  // 返回对象自身的属性(不是在原型上的)
-  // ES 5 Object.keys 方法
-  _.keys = function (obj) {
-    if (!_.isObject(obj)) return [];
-    if (nativeKeys) return nativeKeys(obj);
-    var keys = [];
-    for (var key in obj) {
-      if (_.has(obj, key)) {
-        keys.push(key);
-      }
-    }
-    if (hasEnumBug) {
-      collectNonEnumProps(obj, keys);
-    }
-    return keys;
-  };
-
-  // 返回所有属性（包括继承（原型）属性）
-  _.allKeys = function (obj) {
-    if (!_.isObject(obj)) return [];
-    var keys = [];
-    for (var key in obj) keys.push(key);
-    // Ahem, IE < 9
-    if (hasEnumBug) collectNonEnumProps(obj, keys);
-    return keys;
-  };
 
   // 判断一个属性是否是每个对象的自有属性（即该属性不是在原型上的）
   _.has = function (obj, path) {
