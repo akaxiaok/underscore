@@ -222,19 +222,6 @@
   };
 
 
-  // 返回 对象第一个中通过 predicate 函数的元素的 key
-  _.findKey = function (obj, predicate, context) {
-    predicate = cb(predicate, context);
-    var keys = _.keys(obj),
-      length = keys.length,
-      i = 0,
-      key;
-    for (; i < length; i++) {
-      key = keys[i];
-      if (predicate(obj[key], key, obj)) return key;
-    }
-  };
-
   // 返回通过 predicate 的元素
   _.filter = _.select = function (obj, predicate, context) {
     var results = [];
@@ -1019,21 +1006,49 @@
     return values;
   };
 
-  _.now = Date.now || function () {
-    return new Date().getTime();
+
+  // map 的对象版，对对象的每个属性执行 iteratee ，以原对象属性 key 返回结果集对象
+  _.mapObject = function (obj, iteratee, context) {
+    iteratee = cb(iteratee, context);
+    var keys = _.keys(obj),
+      length = keys.length,
+      results = {};
+    for (var index = 0; index < length; index++) {
+      var currentKey = keys[index];
+      results[currentKey] = iteratee(obj[currentKey], currentKey, obj);
+    }
+    return results;
   };
 
-  // 什么也不做，返回原值
-  _.identity = function (value) {
-    return value;
-  };
-  // 返回 [min, max] 之间的一个随机数
-  _.random = function (min, max) {
-    if (max == null) {
-      max = min;
-      min = 0;
+
+  // 返回对象属性的键值对
+  _.pairs = function (obj) {
+    var keys = _.keys(obj);
+    var length = keys.length;
+    var pairs = Array(length);
+    for (var i = 0; i < length; i++) {
+      pairs[i] = [keys[i], obj[keys[i]]];
     }
-    return min + Math.floor(Math.random() * (max - min + 1));
+    return pairs;
+  };
+
+  // 返回一个属性键值交换的对象，原对象的值应该是可以序列化的
+  _.invert = function (obj) {
+    var results = {};
+    var keys = _.keys(obj);
+    for (var i = 0, length = keys.length; i < length; i++) {
+      results[obj[keys[i]]] = keys[i];
+    }
+    return results;
+  };
+
+  // 返回一个有序数组，包含所有对象可用的方法名
+  _.functions = _.methods = function (obj) {
+    var names = [];
+    for (var key in obj) {
+      if (_.isFunction(obj[key])) names.push(key);
+    }
+    return names.sort();
   };
 
   // 创建扩展方法的内部方法，keysFunc 用于获取属性，传入 _.keys 获取原对象的自有（实例）方法，_.allKeys 获取包括继承（原型）方法在内的所有方法。
@@ -1060,10 +1075,90 @@
   // ES 6 Object.assign
   _.extendOwn = _.assign = createAssigner(_.keys);
 
+  // 返回 对象第一个中通过 predicate 函数的元素的 key
+  _.findKey = function (obj, predicate, context) {
+    predicate = cb(predicate, context);
+    var keys = _.keys(obj),
+      length = keys.length,
+      i = 0,
+      key;
+    for (; i < length; i++) {
+      key = keys[i];
+      if (predicate(obj[key], key, obj)) return key;
+    }
+  };
+
+
+  // 内部方法 判断某个对象是否含有某个属性,value 占位符
+  var keyInObj = function (value, key, obj) {
+    return key in obj;
+  };
+
+  // 复制一个只包含想要的属性的对象,可以传入一个方法对属性进行筛选,也可以传入需要保留的属性名
+  _.pick = restArgs(function (obj, keys) {
+    var result = {}, iteratee = keys[0];
+    if (obj == null) return result;
+    if (_.isFunction(iteratee)) {
+      if (keys.length > 1) iteratee = optimizeCb(iteratee, keys[1]);
+      keys = _.allKeys(obj);
+    } else {
+      iteratee = keyInObj;
+      keys = flatten(keys, false, false);
+      obj = Object(obj);
+    }
+    for (var i = 0, length = keys.length; i < length; i++) {
+      var key = keys[i];
+      var value = obj[key];
+      if (iteratee(value, key, obj)) result[key] = value;
+    }
+    return result;
+  });
+
+  // 复制一个去掉不想要的属性的对象,可以传入一个方法对属性进行筛选,也可以传入需要去掉的属性名
+  _.omit = restArgs(function (obj, keys) {
+    var iteratee = keys[0], context;
+    if (_.isFunction(iteratee)) {
+      iteratee = _.negate(iteratee);
+      if (keys.length > 1) context = keys[1]; // 如果传入了过滤函数，接下来的一个参数会作为 context
+    } else {
+      keys = _.map(flatten(keys, false, false), String);
+      iteratee = function (value, key) {
+        return !_.contains(keys, key);
+      }
+    }
+    return _.pick(obj, iteratee, context);
+  });
+
+  // 为某个对象填充默认值（已有的属性不覆盖，区别与 _.extend）
+  _.defaults = createAssigner(_.allKeys, true);
+
+
+  // 创建一个对象，以第一个对象为原型，如果传入第二个对象，则将它的实例方法复制到创建的新对象上
+  _.create = function (prototype, props) {
+    var result = baseCreate(prototype);
+    if (props) _.extendOwn(result, props);
+    return result;
+  };
+
+
+  // 克隆一个数组或者对象（浅复制）
+  _.clone = function (obj) {
+    if (!_.isObject(obj)) return obj;
+    return _.isArray(obj) ? obj.slice() : _.extend({}, obj);
+  };
+
+  // 传入一个对象和一个方法，将对象当做参数调用函数，返回该对象
+  _.tap = function (obj, interceptor) {
+    interceptor(obj);
+    return obj;
+  };
+
+
+
   // 判断对象是否含有某些键值对
   _.isMatch = function (object, attrs) {
     var keys = _.keys(attrs), length = keys.length;
-    if (object == null) return !length;
+    if (object == null) return !length; // keys 为 0 返回 true
     var obj = Object(object);
     for (var i = 0; i < length; i++) {
       var key = keys[i];
@@ -1071,6 +1166,13 @@
     }
     return true;
   };
+
+  _.now = Date.now || function () {
+    return new Date().getTime();
+  };
+
+
+
 
   // 返回一个读取对应属性的方法
   _.property = function (path) {
@@ -1137,4 +1239,16 @@
     }
   }
 
+  // 什么也不做，返回原值
+  _.identity = function (value) {
+    return value;
+  };
+  // 返回 [min, max] 之间的一个随机数
+  _.random = function (min, max) {
+    if (max == null) {
+      max = min;
+      min = 0;
+    }
+    return min + Math.floor(Math.random() * (max - min + 1));
+  };
 }());
