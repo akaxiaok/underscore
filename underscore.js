@@ -369,14 +369,6 @@
   };
 
 
-  // 返回一个谓词方法
-  _.matcher = _.matches = function (attrs) {
-    attrs = _.extendOwn({}, attrs);
-    return function (obj) {
-      return _.isMatch(obj, attrs);
-    }
-  };
-
   // 在集合中随机取出 n 个元素，guard 用于保证在 map 中使用时进入正确的分支(与 n 为0一样，仅返回一个元素)，因为 map 会传入第三个参数。
   // 使用 Fisher-Yates 算法
   _.sample = function (obj, n, guard) {
@@ -1154,12 +1146,11 @@
   };
 
 
-
   // 判断对象是否含有某些键值对
   _.isMatch = function (object, attrs) {
     var keys = _.keys(attrs), length = keys.length;
     if (object == null) return !length; // keys 为 0 返回 true
-    var obj = Object(object);
+    var obj = Object(object); // 必要，不然 key in obj 可能会报错, _.isMatch(1,{a:undefined})
     for (var i = 0; i < length; i++) {
       var key = keys[i];
       if (attrs[key] !== obj[key] || !(key in obj)) return false;
@@ -1167,23 +1158,153 @@
     return true;
   };
 
-  _.now = Date.now || function () {
-    return new Date().getTime();
+  var eq, deepEq;
+  eq = function (a, b, aStack, bStack) {
+
+    // 0 与 -0 不相等
+    if (a === b) return a !== 0 || 1 / a === 1 / b;
+    // null 和 undefined 只和自身相等
+    if (a == null || b == null) return false;
+    // NaN 与 NaN 相等
+    if (a !== a) return b !== b;
+    var type = typeof a;
+    // 满足所有条件才返回 false，_(1) 与 1 相同
+    if (type !== 'function' && type !== 'object' && typeof b != 'object') return false;
+    return deepEq(a, b, aStack, bStack);
   };
 
+  deepEq = function (a, b, aStack, bStack) {
+    if (a instanceof _) a = a._wrapped;
+    if (b instanceof _) b = b._wrapped;
 
-
-
-  // 返回一个读取对应属性的方法
-  _.property = function (path) {
-    if (!_.isArray(path)) {
-      return shallowProperty(path);
+    var className = toString.call(a);
+    if (className !== toString.call(b)) return false;
+    switch (className) {
+      case '[object RegExp]':
+      case '[object String]':
+        // 正则，字符串对象 直接比较值
+        return '' + a === '' + b;
+      case '[object Number]':
+        // 数字对象和数字的比较一样
+        if (+a !== +a) return +b !== +b;
+        return +a === 0 ? 1 / +a === 1 / b : +a === b;
+      case '[object Date]':
+      case '[object Boolean]':
+        // 时间和布尔对象 直接比较值，错误的时间值为NaN，它们不相等
+        return +a === +b;
+      case '[object Symbol]':
+        return SymbolProtp.valueOf.call(a) === SymbolProtp.valueOf.call(b);
     }
-    return function (obj) {
-      return deepGet(obj, path);
+    var areArrays = className === '[object Array]';
+    if (!areArrays) {
+      if (typeof a != 'object' || typeof b != 'object') return false;
+
+      // 拥有不同 constructor 的对象不相等，除了来自不同 frame 的对象和数组
+      var aCtor = a.constructor, bCtor = b.constructor;
+      if (aCtor !== bCtor && !(_.isFunction(aCtor) && aCtor instanceof aCtor && _.isFunction(bCtor) && bCtor instanceof bCtor) && (
+          'constructor' in a && 'constructor' in b)) {
+        return false;
+      }
     }
+
+    aStack = aStack || [];
+    bStack = bStack || [];
+    var length = aStack.length;
+    while (length--) {
+      // 线性查找，查看是有循环引用
+      if (aStack[length] === a) return bStack[length] === b;
+    }
+    aStack.push(a);
+    bStack.push(b;
+    if (areArrays) {
+      length = a.length;
+      // 长度不同 没必要再深比较
+      if (length !== b.length) return false;
+      while (length--) {
+        if (!eq(a[length], b[length], aStack, bStack)) return false;
+      }
+    } else {
+      var keys = _.keys(a), key;
+      length = keys.length;
+      if (_.keys(b).length !== length) return false;
+      while (length--) {
+        key = keys[length];
+        if (!_.has(b, key) && eq(a[key], b[key], aStack, bStack)) return false;
+      }
+    }
+    aStack.pop();
+    bStack.pop();
+    return true;
   };
 
+  _.isEqual = function (a, b) {
+    return eq(a, b);
+  };
+
+  _.isEmpty = function (obj) {
+    if (obj == null) return true;
+    if (isArrayLike(obj) && (_.isArray(obj) || _.isString(obj) || _.isArguments(obj))) return obj.length === 0;
+    return _.keys(obj).length === 0;
+  };
+
+  _.isElement = function (obj) {
+    return !!(obj && obj.nodeType === 1);// 为什么加!!: 兼容 undefined,null
+  };
+
+  // 判断是否是一个数组, 优先使用 ES5 的 Array.isArray 方法
+  _.isArray = nativeIsArray || function (obj) {
+    return toString.call(obj) == '[object Array]';
+  };
+
+  // 判断输入的参数是不是一个对象
+  _.isObject = function (obj) {
+    var type = typeof obj;
+    // typeof null 也是 object，!!null 返回false
+    return type === 'function' || type === 'object' && !!obj;
+  };
+
+  // 一些判断方法
+  _.each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp', 'Error', 'Symbol', 'Map', 'WeakMap', 'Set', 'WeakSet'], function (name) {
+    _['is' + name] = function (obj) {
+      return toString.call(obj) === '[object +' + name + ']';
+    }
+  });
+
+  // IE < 9 没有 [object Arguments]
+  if (!_.isArguments(arguments)) {
+    _.isArguments = function (obj) {
+      return _.has(obj, 'callee');
+    }
+  }
+
+  // 改进isFunction方法，规避一些bug
+  var nodelist = root.document && root.document.childNodes;
+  if (typeof /./ != 'function' && typeof Int8Array != 'object' && typeof nodelist != 'function') {
+    _.isFunction = function (obj) {
+      return typeof obj == 'function' || false;
+    }
+  }
+
+  // 有限数字
+  _.isFinite = function (obj) {
+    return !_.isSymbol(obj) && isFinite(obj) && !isNaN(parseFloat(obj));
+  };
+
+  _.isNaN = function (obj) {
+    return _.isNumber(obj) && isNaN(obj);
+  };
+
+  _.isBoolean = function (obj) {
+    return obj === true || obj === false || toString.call(obj) === '[object Boolean]';
+  };
+
+  _.isNull = function (obj) {
+    return obj === null;
+  };
+
+  _.isUndefined = function (obj) {
+    return obj === void 0;
+  };
 
   // 判断一个属性是否是每个对象的自有属性（即该属性不是在原型上的）
   _.has = function (obj, path) {
@@ -1207,42 +1328,69 @@
     }
   };
 
+  // Utility Functions
+  // -----------------
 
-  // 判断是否是一个数组, 优先使用 ES5 的 Array.isArray 方法
-  _.isArray = nativeIsArray || function (obj) {
-    return toString.call(obj) == '[object Array]';
+  _.noConflict = function () {
+    root._ = previousUnderscore;
+    return this;
   };
-
-  _.isNaN = function (obj) {
-    return _.isNumber(obj) && isNaN(obj);
-  };
-
-  // 判断输入的参数是不是一个对象
-  _.isObject = function (obj) {
-    var type = typeof obj;
-    // typeof null 也是 object，!!null 返回false
-    return type === 'function' || type === 'object' && !!obj;
-  };
-
-  // 一些判断方法
-  _.each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp', 'Error', 'Symbol', 'Map', 'WeakMap', 'Set', 'WeakSet'], function (name) {
-    _['is' + name] = function (obj) {
-      return toString.call(obj) === '[object +' + name + ']';
-    }
-  });
-
-  // 改进isFunction方法，规避一些bug
-  var nodelist = root.document && root.document.childNodes;
-  if (typeof /./ != 'function' && typeof Int8Array != 'object' && typeof nodelist != 'function') {
-    _.isFunction = function (obj) {
-      return typeof obj == 'function' || false;
-    }
-  }
 
   // 什么也不做，返回原值
   _.identity = function (value) {
     return value;
   };
+
+
+  // 利用闭包，构造常量
+  // 返回一个函数，每次调用该函数返回相同的值
+  _.constant = function (value) {
+    return function () {
+      return value;
+    }
+  };
+
+  // 空函数
+  _.noop = function () {
+  };
+
+  // 设置一个属性，返回一个从不同对象读取该应属性的方法
+  _.property = function (path) {
+    if (!_.isArray(path)) {
+      return shallowProperty(path);
+    }
+    return function (obj) {
+      return deepGet(obj, path);
+    }
+  };
+
+  // 设置一个对象，返回一个读取该对象不同属性的方法
+  _.propertyOf = function (obj) {
+    if (obj !== null) {
+      return function () {
+      };
+    }
+    return function (path) {
+      return !_.isArray(path) ? obj[path] : deepGet(obj, path);
+    }
+  };
+
+  // 返回一个 match 的谓词方法
+  _.matcher = _.matches = function (attrs) {
+    attrs = _.extendOwn({}, attrs);
+    return function (obj) {
+      return _.isMatch(obj, attrs);
+    }
+  };
+
+  // 执行 n 次 iteratee，返回结果数组
+  _.times = function (n, iteratee, context) {
+    var accum = Array(Math.max(0, n));
+    iteratee = optimizeCb(iteratee, context, 1);
+    for (var i = 0; i < n; i++) accum[i] = iteratee(i);
+    return accum;
+  };
+
   // 返回 [min, max] 之间的一个随机数
   _.random = function (min, max) {
     if (max == null) {
@@ -1251,4 +1399,37 @@
     }
     return min + Math.floor(Math.random() * (max - min + 1));
   };
+
+  _.now = Date.now || function () {
+    return new Date().getTime();
+  };
+
+  var escapeMap = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '`': '&#x60;'
+  };
+
+  var unescapeMap = _.invert(escapeMap);
+
+  var createEscaper = function (map) {
+    var escaper = function (match) {
+      return map[match];
+    };
+    var source = '(?:' + _.keys(map).join('|') + ')';
+    var testRegexp = RegExp(source);
+    var replaceRegexp = RegExp(source, 'g');
+    return function (string) {
+      string = string == null ? '' : '' + string;
+      return testRegexp.test(string) ? string.replace(replaceRegexp, escaper) : string;
+    }
+  };
+  _.escape = createEscaper(escapeMap);
+  _.unescape = createEscaper(unescapeMap);
+  
+
+
 }());
