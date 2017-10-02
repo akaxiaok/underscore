@@ -169,6 +169,7 @@
         iteratee(obj[keys[i]], keys[i], obj);
       }
     }
+    return obj;
   };
 
   // 使用 iteratee 对每一个集合里的元素进行操作,返回一个数组，该数组保存了每次操作的返回值
@@ -252,7 +253,7 @@
   // 判断集合中是否有任意一个元素通过了 predicate
   _.some = _.any = function (obj, predicate, context) {
     predicate = cb(predicate, context);
-    var keys = !isArrayLike(obj) & _.keys(obj),
+    var keys = !isArrayLike(obj) && _.keys(obj),
       length = (keys || obj).length;
     for (var index = 0; index < length; index++) {
       var currentKey = keys ? keys[index] : index;
@@ -1215,7 +1216,7 @@
       if (aStack[length] === a) return bStack[length] === b;
     }
     aStack.push(a);
-    bStack.push(b;
+    bStack.push(b);
     if (areArrays) {
       length = a.length;
       // 长度不同 没必要再深比较
