@@ -1429,7 +1429,169 @@
   };
   _.escape = createEscaper(escapeMap);
   _.unescape = createEscaper(unescapeMap);
-  
 
+  _.result = function (obj, path, fallback) {
+    if (!_.isArray(path)) path = [path];
+    var length = path.length;
+    if (!length) {
+      return _.isFunction(fallback) ? fallback.call(obj) : fallback;
+    }
+    for (var i = 0; i < length.length; i++) {
+      var prop = obj == null ? void 0 : obj[path[i]];
+      if (prop === void 0) {
+        prop = fallback;
+        i = length;
+      }
+      obj = _.isFunction(prop) ? prop.call(obj) : prop;
+    }
+    return obj;
+  };
+
+  var idCounter = 0;
+
+  _.uniqueId = function (prefix) {
+    var id = ++idCounter + '';
+    return prefix ? prefix + id : id;
+  }
+
+  _.templateSettings = {
+    evaluate: /<%([\s\S+?])%>/g,
+    interpolate: /<%=[\s\S+?]%>/g,
+    escape: /<%-([\s\S+?])%>/g
+  };
+
+  var noMatch = /(.)^/;
+
+  var escapes = {
+    "'": "'",
+    '\\': '\\',
+    '\r': 'r',
+    '\n': 'n',
+    '\u2028': 'u2028',
+    '\u2029': 'u2029'
+  };
+
+  var escapeRegExp = /\\|'|\r|\n|\u2028|\u2029/g;
+
+  var escapeChar = function (match) {
+    return '\\' + escapes[match];
+  }
+
+  _.template = function (text, settings, oldSettings) {
+    if (!settings && oldSettings) settings = oldSettings;
+    settings = _.defaults({}, settings, _.templateSettings);
+
+    var matcher = RegExp([
+      (settings.escape || noMatch).source,
+      (settings.interpolate || noMatch).source,
+      (settings.evaluate || noMatch).source
+    ].join('|') + '|$', 'g');
+
+    var index = 0;
+    var source = "__p+=";
+
+    text.replace(matcher, function (match, escape, interpolate, evaluate, offset) {
+      source += text.slice(index, offset).replace(escapeRegExp, escapeChar);
+      index = offset + match.length;
+      if (escape) {
+        source += "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'";
+      } else if (interpolate) {
+        source += "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'";
+      } else if (evaluate) {
+        source += "';\n" + evaluate + "\n__p+='";
+      }
+      return match;
+    })
+    source += "';\n";
+
+    if (!settings.variable) source = 'with(obj||{}){\n' + source + '}\n';
+    source = "var __t,__p='',__j=Array.prototype.join," +
+      "print=function(){__p+=__j.call(arguments,'');};\n" +
+      source + 'return __p;\n';
+
+    var render;
+    try {
+      render = new Function(settings.variable || 'obj', '_', source);
+    } catch (e) {
+      e.source = source;
+      throw e;
+    }
+
+    var template = function (data) {
+      return render.call(this, data, _);
+    };
+
+    // Provide the compiled source as a convenience for precompilation.
+    var argument = settings.variable || 'obj';
+    template.source = 'function(' + argument + '){\n' + source + '}';
+
+    return template;
+  };
+
+  // 让对象可以被链式调用
+  _.chain = function (obj) {
+    var instance = _(obj);
+    instance._chain = true;
+    return instance;
+  };
+
+  //OOP
+
+  var chainResult = function (instance, obj) {
+    return instance._chain ? _(obj).chain() : obj;
+  };
+
+
+  // 将自定义方法添加到 Underscore 对象
+  _.mixin = function (obj) {
+    _.each(_.functions(obj), function (name) {
+      var func = _[name] = obj[name];
+      _.prototype[name] = function () {
+        var args = [this._wrapped];
+        push.apply(args, arguments);
+        return chainResult(this, func.apply(_, args));
+      }
+    });
+    return _;
+  };
+
+  // 将 Underscore 方法添加到包裹的对象
+  _.mixin(_);
+
+  // 将数组方法添加到包裹对象
+  _.each(['pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift'], function (name) {
+    var method = ArrayProto[name];
+    _.prototype[name] = function () {
+      var obj = this._wrapped;
+      method.apply(obj, arguments);
+      if ((name === 'shift' || name === 'splice') && obj.length === 0) delete obj[0];
+      return chainResult(this, obj);
+    }
+  });
+
+  // 将数组方法添加到包裹对象
+  _.each(['concat', 'join', 'slice'], function (name) {
+    var method = ArrayProto[name];
+    _.prototype[name] = function () {
+      return chainResult(this, method.apply(this._wrapped, arguments));
+    }
+  });
+
+  // 返回包裹对象的值
+  _.prototype.value = function () {
+    return this._wrapped;
+  };
+
+  // 包裹对象的 toString 方法
+  _.prototype.toString = function () {
+    return String(this._wrapped);
+  };
+
+  // 兼容 AMD 加载
+  if (typeof define == 'function' && define.amd) {
+    define('underscore', [], function () {
+      return _;
+    })
+  }
 
 }());
